@@ -13,7 +13,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 import json
 import warnings
-from typing import Callable, List, NamedTuple, Tuple, Union
+from typing import Callable, List, NamedTuple, Tuple, Union, Literal
 
 import cv2
 import numpy as np
@@ -196,7 +196,7 @@ class OpenposeDetector:
             
             return results
         
-    def __call__(self, input_image, detect_resolution=512, image_resolution=512, include_body=True, include_hand=False, include_face=False, hand_and_face=None, output_type="pil", **kwargs):
+    def __call__(self, input_image, detect_resolution=512, image_resolution=512, include_body=True, include_hand=False, include_face=False, hand_and_face=None, output_type="pil", freeze_poses_idx: List[int] = [], freeze_poses: List[PoseResult] = [], freeze_parts: List[Literal["left_leg"] | Literal["right_leg"] | Literal["right_toe"] | Literal["left_toe"]] = [], **kwargs):
         if hand_and_face is not None:
             warnings.warn("hand_and_face is deprecated. Use include_hand and include_face instead.", DeprecationWarning)
             include_hand = hand_and_face
@@ -218,6 +218,42 @@ class OpenposeDetector:
         H, W, C = input_image.shape
         
         poses = self.detect_poses(input_image, include_hand, include_face)
+
+        for idx in freeze_poses_idx:
+            for part in freeze_parts:
+                if part == "left_leg":
+                    poses[idx].body.keypoints[8] = freeze_poses[idx].body.keypoints[8]
+                    poses[idx].body.keypoints[9] = freeze_poses[idx].body.keypoints[9]
+                    poses[idx].body.keypoints[10] = freeze_poses[idx].body.keypoints[10]
+                elif part == "right_leg":
+                    poses[idx].body.keypoints[11] = freeze_poses[idx].body.keypoints[11]
+                    poses[idx].body.keypoints[12] = freeze_poses[idx].body.keypoints[12]
+                    poses[idx].body.keypoints[13] = freeze_poses[idx].body.keypoints[13]
+                elif part == "right_toe":
+                    poses[idx].body.keypoints[13] = freeze_poses[idx].body.keypoints[13]
+                elif part == "left_toe":
+                    poses[idx].body.keypoints[10] = freeze_poses[idx].body.keypoints[10]
+
+                """
+                if part == "left_leg":
+                    poses[idx].body.keypoints[13] = freeze_poses[idx].body.keypoints[13]
+                    poses[idx].body.keypoints[14] = freeze_poses[idx].body.keypoints[14]
+                    poses[idx].body.keypoints[15] = freeze_poses[idx].body.keypoints[15]
+                    poses[idx].body.keypoints[16] = freeze_poses[idx].body.keypoints[16]
+                elif part == "right_leg":
+                    poses[idx].body.keypoints[9] = freeze_poses[idx].body.keypoints[9]
+                    poses[idx].body.keypoints[10] = freeze_poses[idx].body.keypoints[10]
+                    poses[idx].body.keypoints[11] = freeze_poses[idx].body.keypoints[11]
+                    poses[idx].body.keypoints[12] = freeze_poses[idx].body.keypoints[12]
+                elif part == "right_toe":
+                    poses[idx].body.keypoints[17] = freeze_poses[idx].body.keypoints[17]
+                elif part == "left_toe":
+                    poses[idx].body.keypoints[18] = freeze_poses[idx].body.keypoints[18]
+                """
+
+
+
+
         canvas = draw_poses(poses, H, W, draw_body=include_body, draw_hand=include_hand, draw_face=include_face) 
 
         detected_map = canvas
@@ -231,4 +267,4 @@ class OpenposeDetector:
         if output_type == "pil":
             detected_map = Image.fromarray(detected_map)
 
-        return detected_map
+        return detected_map, poses
