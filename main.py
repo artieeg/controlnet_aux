@@ -13,7 +13,6 @@ freeze_pose_list = [[
     'left_leg'
 ]]
 
-
 new_map, _ = openpose(pose_2, freeze_poses_idx=[0], freeze_poses=[
                       poses[0]], freeze_parts=["left_leg", "right_leg"])
 
