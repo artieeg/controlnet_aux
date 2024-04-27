@@ -7,6 +7,8 @@
 # This preprocessor is licensed by CMU for non-commercial use only.
 
 
+from copy import deepcopy
+from typing import Literal, Union
 from .hand import Hand
 from .face import Face
 from .body import Body, BodyResult, Keypoint
@@ -24,6 +26,23 @@ import os
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
+
+FreezePointsIndicesLiteralValues = Literal[
+    'left_leg', 'right_leg', 'right_toe', 'left_toe', 'head', 'left_arm', 'right_arm', 'chest', 'left_tibia', 'right_tibia'
+]
+
+freeze_points_indices: dict[FreezePointsIndicesLiteralValues, list[int]] = {
+    'left_leg': [8, 9, 10],
+    'left_tibia': [9, 10],
+    'right_leg': [11, 12, 13],
+    'right_tibia': [12, 13],
+    'right_toe': [13],
+    'left_toe': [10],
+    'head': [0, 1, 14, 15, 16, 17],
+    'left_arm': [2, 3, 4],
+    'right_arm': [5, 6, 7],
+    'chest': [1],
+}
 
 HandResult = List[Keypoint]
 FaceResult = List[Keypoint]
@@ -208,7 +227,26 @@ class OpenposeDetector:
 
             return results
 
-    def __call__(self, input_image, detect_resolution=512, image_resolution=512, include_body=True, include_hand=False, include_face=False, hand_and_face=None, output_type="pil", freeze_poses_idx: List[int] = [], freeze_poses: List[PoseResult] = [], freeze_parts: List[Literal["left_leg"] | Literal["right_leg"] | Literal["right_toe"] | Literal["left_toe"]] = [], merge_poses=True, **kwargs):
+    def strip_parts(self, pose: PoseResult, parts: List[FreezePointsIndicesLiteralValues]):
+        pose_copy = deepcopy(pose)
+
+        body = pose_copy.body
+
+        for part in parts:
+            for point in freeze_points_indices[part]:
+                body.keypoints[point] = None
+
+        canvas = draw_poses([pose_copy], 512, 512, draw_body=True)
+
+        detected_map = canvas
+        detected_map = HWC3(detected_map)
+
+        detected_map = cv2.resize(detected_map, (512, 512), interpolation=cv2.INTER_LINEAR)
+        detected_map = Image.fromarray(detected_map)
+
+        return detected_map, [pose_copy]
+
+    def __call__(self, input_image, detect_resolution=512, image_resolution=512, include_body=True, include_hand=False, include_face=False, hand_and_face=None, output_type="pil", freeze_poses_idx: List[int] = [], freeze_poses: List[PoseResult] = [], freeze_parts: list[FreezePointsIndicesLiteralValues] = [], merge_poses=True, **kwargs):
         if hand_and_face is not None:
             warnings.warn(
                 "hand_and_face is deprecated. Use include_hand and include_face instead.", DeprecationWarning)
@@ -249,17 +287,6 @@ class OpenposeDetector:
 
         for idx in freeze_poses_idx:
             for part in freeze_parts:
-                freeze_points_indices = {
-                    'left_leg': [8, 9, 10],
-                    'right_leg': [11, 12, 13],
-                    'right_toe': [13],
-                    'left_toe': [10],
-                    'head': [0, 1, 14, 15, 16, 17],
-                    'left_arm': [2, 3, 4],
-                    'right_arm': [5, 6, 7],
-                    'chest': [1],
-                }
-
                 for point in freeze_points_indices[part]:
                     poses[idx].body.keypoints[point] = freeze_poses[idx].body.keypoints[point]
 
@@ -272,7 +299,8 @@ class OpenposeDetector:
         img = resize_image(input_image, image_resolution)
         H, W, C = img.shape
 
-        detected_map = cv2.resize(detected_map, (W, H), interpolation=cv2.INTER_LINEAR)
+        detected_map = cv2.resize(
+            detected_map, (W, H), interpolation=cv2.INTER_LINEAR)
 
         if output_type == "pil":
             detected_map = Image.fromarray(detected_map)

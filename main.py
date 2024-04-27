@@ -13,8 +13,12 @@ freeze_pose_list = [[
     'left_leg'
 ]]
 
-new_map, _ = openpose(pose_2, freeze_poses_idx=[0], freeze_poses=[
-                      poses[0]], freeze_parts=["left_leg", "right_leg"])
+new_map, new_poses = openpose(pose_2, freeze_poses_idx=[0], freeze_poses=[
+    poses[0]], freeze_parts=["left_leg", "right_leg"])
 
-map.show()
-new_map.show()
+# map.show()
+# new_map.show()
+
+stripped_map, poses = openpose.strip_parts(new_poses[0], ["left_leg", "right_leg"])
+
+stripped_map.show()
