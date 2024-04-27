@@ -272,7 +272,7 @@ class OpenposeDetector:
 
         poses = self.detect_poses(input_image, include_hand, include_face)
 
-        if merge_poses:
+        if merge_poses and len(poses) > 1:
             base_pose_idx = 0
 
             for idx, pose in enumerate(poses):
