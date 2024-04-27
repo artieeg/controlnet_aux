@@ -286,6 +286,9 @@ class OpenposeDetector:
             poses = [poses[base_pose_idx]]
 
         for idx in freeze_poses_idx:
+            if poses[idx] is None:
+                continue
+
             for part in freeze_parts:
                 for point in freeze_points_indices[part]:
                     poses[idx].body.keypoints[point] = freeze_poses[idx].body.keypoints[point]
