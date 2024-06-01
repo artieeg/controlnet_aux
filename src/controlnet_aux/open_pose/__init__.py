@@ -228,49 +228,23 @@ class OpenposeDetector:
             return results
 
     def strip_parts(self, pose: PoseResult, parts: List[FreezePointsIndicesLiteralValues]):
-        pose_copy = deepcopy(pose)
-
-        body = pose_copy.body
+        copy = deepcopy(pose)
+        body = copy.body
 
         for part in parts:
             for point in freeze_points_indices[part]:
                 body.keypoints[point] = None
 
-        canvas = draw_poses([pose_copy], 512, 512, draw_body=True)
+        return copy
 
-        detected_map = canvas
-        detected_map = HWC3(detected_map)
-
-        detected_map = cv2.resize(detected_map, (512, 512), interpolation=cv2.INTER_LINEAR)
-        detected_map = Image.fromarray(detected_map)
-
-        return detected_map, [pose_copy]
-
-    def __call__(self, input_image, detect_resolution=512, image_resolution=512, include_body=True, include_hand=False, include_face=False, hand_and_face=None, output_type="pil", freeze_poses_idx: List[int] = [], freeze_poses: List[PoseResult] = [], freeze_parts: list[FreezePointsIndicesLiteralValues] = [], merge_poses=True, **kwargs):
-        if hand_and_face is not None:
-            warnings.warn(
-                "hand_and_face is deprecated. Use include_hand and include_face instead.", DeprecationWarning)
-            include_hand = hand_and_face
-            include_face = hand_and_face
-
-        if "return_pil" in kwargs:
-            warnings.warn(
-                "return_pil is deprecated. Use output_type instead.", DeprecationWarning)
-            output_type = "pil" if kwargs["return_pil"] else "np"
-        if type(output_type) is bool:
-            warnings.warn(
-                "Passing `True` or `False` to `output_type` is deprecated and will raise an error in future versions")
-            if output_type:
-                output_type = "pil"
-
+    def __call__(self, input_image, detect_resolution=512, freeze_poses_idx: List[int] = [], freeze_poses: List[PoseResult] = [], freeze_parts: list[FreezePointsIndicesLiteralValues] = [], merge_poses=False):
         if not isinstance(input_image, np.ndarray):
             input_image = np.array(input_image, dtype=np.uint8)
 
         input_image = HWC3(input_image)
         input_image = resize_image(input_image, detect_resolution)
-        H, W, C = input_image.shape
 
-        poses = self.detect_poses(input_image, include_hand, include_face)
+        poses = self.detect_poses(input_image)
 
         if merge_poses and len(poses) > 1:
             base_pose_idx = 0
@@ -293,19 +267,41 @@ class OpenposeDetector:
                 for point in freeze_points_indices[part]:
                     poses[idx].body.keypoints[point] = freeze_poses[idx].body.keypoints[point]
 
-        canvas = draw_poses(poses, H, W, draw_body=include_body,
-                            draw_hand=include_hand, draw_face=include_face)
+                if "right_hand" in freeze_parts:
+                    right_hand = poses[idx].right_hand
 
-        detected_map = canvas
-        detected_map = HWC3(detected_map)
+                    frozen_right_hand = freeze_poses[idx].right_hand
+                    if frozen_right_hand is not None and right_hand is not None:
+                        for n, keypoint in enumerate(frozen_right_hand):
+                            if keypoint is not None:
+                                right_hand[n] = keypoint
+
+                if "left_hand" in freeze_parts:
+                    left_hand = poses[idx].left_hand
+
+                    frozen_left_hand = freeze_poses[idx].left_hand
+                    if frozen_left_hand is not None and left_hand is not None:
+                        for n, keypoint in enumerate(frozen_left_hand):
+                            if keypoint is not None:
+                                left_hand[n] = keypoint
+
+        return poses
+
+
+    def render_poses(self, input: Union[PoseResult, List[PoseResult]], input_image: Image.Image, detect_resolution=512, image_resolution=512):
+        input_image = np.array(input_image, dtype=np.uint8)
+        input_image = HWC3(input_image)
+        input_image = resize_image(input_image, detect_resolution)
+        H, W, _ = input_image.shape
+
+        canvas = draw_poses(input if isinstance(input, list) else [input], H, W)
+
+        output = canvas
+        output = HWC3(output)
 
         img = resize_image(input_image, image_resolution)
         H, W, C = img.shape
 
-        detected_map = cv2.resize(
-            detected_map, (W, H), interpolation=cv2.INTER_LINEAR)
+        output = Image.fromarray(cv2.resize(output, (W, H), interpolation=cv2.INTER_LINEAR))
 
-        if output_type == "pil":
-            detected_map = Image.fromarray(detected_map)
-
-        return detected_map, poses
+        return output
