@@ -288,7 +288,7 @@ class OpenposeDetector:
         return poses
 
 
-    def render_poses(self, input: Union[PoseResult, List[PoseResult]], input_image: Image.Image, detect_resolution=512, image_resolution=512):
+    def render_poses(self, input: Union[PoseResult, List[PoseResult]], input_image = Image.new("RGB", (512, 512)), detect_resolution=512, image_resolution=512):
         input_image = np.array(input_image, dtype=np.uint8)
         input_image = HWC3(input_image)
         input_image = resize_image(input_image, detect_resolution)
