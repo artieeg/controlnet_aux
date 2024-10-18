@@ -4,9 +4,11 @@
 # 3rd Edited by ControlNet
 # 4th Edited by ControlNet (added face and correct hands)
 # 5th Edited by ControlNet (Improved JSON serialization/deserialization, and lots of bug fixs)
+
 # This preprocessor is licensed by CMU for non-commercial use only.
 
 
+import math
 from copy import deepcopy
 from typing import Literal, Union
 from .hand import Hand
@@ -306,80 +308,78 @@ class OpenposeDetector:
 
         return output
 
-import math
+    def pose_similarity(self, pose1: PoseResult, pose2: PoseResult) -> float:
+        """
+        Calculate the similarity between two poses by averaging the distances between corresponding keypoints.
+        
+        Args:
+            pose1 (PoseResult): The first pose to compare.
+            pose2 (PoseResult): The second pose to compare.
+        
+        Returns:
+            float: A similarity score between 0 and 1, where 1 indicates identical poses and 0 indicates completely different poses.
+        """
+        body1 = pose1.body
+        body2 = pose2.body
+        
+        total_distance = 0
+        valid_points = 0
+        
+        for kp1, kp2 in zip(body1.keypoints, body2.keypoints):
+            if kp1 is not None and kp2 is not None:
+                distance = math.sqrt((kp1.x - kp2.x)**2 + (kp1.y - kp2.y)**2)
+                total_distance += distance
+                valid_points += 1
+        
+        if valid_points == 0:
+            return 0  # No valid points to compare
+        
+        average_distance = total_distance / valid_points
+        
+        # Convert average distance to a similarity score
+        # We use an exponential function to map distance to similarity
+        # Smaller distances result in higher similarity scores
+        similarity = math.exp(-average_distance * 10)  # The factor 10 can be adjusted to change the sensitivity
+        
+        return similarity
 
-def pose_similarity(pose1: PoseResult, pose2: PoseResult) -> float:
-    """
-    Calculate the similarity between two poses by averaging the distances between corresponding keypoints.
-    
-    Args:
-        pose1 (PoseResult): The first pose to compare.
-        pose2 (PoseResult): The second pose to compare.
-    
-    Returns:
-        float: A similarity score between 0 and 1, where 1 indicates identical poses and 0 indicates completely different poses.
-    """
-    body1 = pose1.body
-    body2 = pose2.body
-    
-    total_distance = 0
-    valid_points = 0
-    
-    for kp1, kp2 in zip(body1.keypoints, body2.keypoints):
-        if kp1 is not None and kp2 is not None:
-            distance = math.sqrt((kp1.x - kp2.x)**2 + (kp1.y - kp2.y)**2)
-            total_distance += distance
-            valid_points += 1
-    
-    if valid_points == 0:
-        return 0  # No valid points to compare
-    
-    average_distance = total_distance / valid_points
-    
-    # Convert average distance to a similarity score
-    # We use an exponential function to map distance to similarity
-    # Smaller distances result in higher similarity scores
-    similarity = math.exp(-average_distance * 10)  # The factor 10 can be adjusted to change the sensitivity
-    
-    return similarity
+    def compare_poses(self, pose1: PoseResult, pose2: PoseResult) -> bool:
+        """
+        Compare two poses and check if all parts from pose1 are present in pose2.
 
-def compare_poses(pose1: PoseResult, pose2: PoseResult) -> bool:
-    """
-    Compare two poses and check if all parts from pose1 are present in pose2.
+        Args:
+            pose1 (PoseResult): The first pose to compare.
+            pose2 (PoseResult): The second pose to compare against.
 
-    Args:
-        pose1 (PoseResult): The first pose to compare.
-        pose2 (PoseResult): The second pose to compare against.
+        Returns:
+            bool: True if all parts from pose1 are present in pose2, False otherwise.
+        """
+        body1 = pose1.body
+        body2 = pose2.body
 
-    Returns:
-        bool: True if all parts from pose1 are present in pose2, False otherwise.
-    """
-    body1 = pose1.body
-    body2 = pose2.body
-
-    for kp1, kp2 in zip(body1.keypoints, body2.keypoints):
-        if kp1 is not None and kp2 is None:
-            return False
-
-    return True
-
-def check_pose_parts(pose: PoseResult, parts: List[FreezePointsIndicesLiteralValues] = list(freeze_points_indices.keys())) -> bool:
-    """
-    Check if all specified body parts are present in the given pose.
-
-    Args:
-        pose (PoseResult): The pose to check.
-        parts (List[FreezePointsIndicesLiteralValues]): The list of body parts to check for. 
-                                                        Defaults to all supported body parts.
-
-    Returns:
-        bool: True if all specified parts are present, False otherwise.
-    """
-    body = pose.body
-
-    for part in parts:
-        for point in freeze_points_indices[part]:
-            if body.keypoints[point] is None:
+        for kp1, kp2 in zip(body1.keypoints, body2.keypoints):
+            if kp1 is not None and kp2 is None:
                 return False
 
-    return True
+        return True
+
+    def check_pose_parts(self, pose: PoseResult, parts: List[FreezePointsIndicesLiteralValues] = list(freeze_points_indices.keys())) -> bool:
+        """
+        Check if all specified body parts are present in the given pose.
+
+        Args:
+            pose (PoseResult): The pose to check.
+            parts (List[FreezePointsIndicesLiteralValues]): The list of body parts to check for. 
+                                                            Defaults to all supported body parts.
+
+        Returns:
+            bool: True if all specified parts are present, False otherwise.
+        """
+        body = pose.body
+
+        for part in parts:
+            for point in freeze_points_indices[part]:
+                if body.keypoints[point] is None:
+                    return False
+
+        return True
